@@ -22,21 +22,17 @@ Deno.serve(async req=>{
  if(we||!world)return new Response('World missing',{status:409});
  const {data:authUser,error:ue}=await db.auth.admin.getUserById(order.owner_id);
  const email=authUser.user?.email;if(ue||!email)return new Response('Customer email missing',{status:409});
- const {data:prior}=await db.from('email_deliveries').select('status').eq('order_id',orderId).eq('kind','welcome').maybeSingle();
+ const {data:prior}=await db.from('email_deliveries').select('status,attempts').eq('order_id',orderId).eq('kind','welcome').maybeSingle();
  if(prior?.status==='sent')return new Response('Already sent',{status:200});
- const {data:invitation}=await db.from('world_invitations').select('id').eq('world_id',world.id).maybeSingle();
- // If invitation already exists but email delivery failed, do not rotate it silently.
- // A retry needs a new secure link and must replace the old token.
- const raw=token();const tokenHash=await hash(raw);
- const {error:ie}=await db.from('world_invitations').upsert({world_id:world.id,token_hash:tokenHash,email,sent_at:null},{onConflict:'world_id'});
- if(ie)return new Response('Invitation creation failed',{status:500});
- const url=`${siteUrl.replace(/\/$/,'')}/?invite=${encodeURIComponent(raw)}`;
+ // The URL is a locator, not a login credential. The customer must authenticate
+ // and RLS must verify ownership before loading private family information.
+ const url=`${siteUrl.replace(/\\/$/,'')}/welt/?world=${encodeURIComponent(world.id)}`;
  const plan=({basic:'Basic',magic:'Magic',ultimate:'Ultimate'} as Record<string,string>)[order.product_id]||'WichtelZauber';
- const html=`<!doctype html><html lang="de"><body style="margin:0;background:#f6f1e7;font-family:Arial,sans-serif;color:#17362c;padding:32px"><div style="max-width:600px;margin:auto;background:white;border-radius:20px;overflow:hidden"><div style="background:#173c30;color:#fff;text-align:center;padding:38px"><div style="font-size:44px">⭐🎄⭐</div><h1>Dein Weihnachtszauber beginnt!</h1><p>Deine persönliche Wichtelwelt ist bereit.</p></div><div style="padding:32px"><h2>Willkommen bei ${escapeHtml(world.elf_name)}!</h2><p>Dein ${escapeHtml(plan)}-Paket wartet auf dich: persönliche Geschichten, Weihnachtsmagie und viele Überraschungen.</p><p style="text-align:center;margin:36px 0"><a href="${escapeHtml(url)}" style="background:#173c30;color:white;padding:16px 26px;border-radius:10px;text-decoration:none;font-weight:bold">Meine Wichtelwelt öffnen</a></p><p style="font-size:13px;color:#65746d">Dieser persönliche Link ist vertraulich. Bitte nicht öffentlich teilen.</p></div></div></body></html>`;
- const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json','Idempotency-Key':`welcome-${orderId}-${tokenHash}`},body:JSON.stringify({from:sender,to:[email],subject:`Deine WichtelZauber-Welt mit ${world.elf_name} ist bereit! ✨`,html})});
+ const html=`<!doctype html><html lang="de"><body style="margin:0;background:#f6f1e7;font-family:Arial,sans-serif;color:#17362c;padding:32px"><div style="max-width:600px;margin:auto;background:white;border-radius:20px;overflow:hidden"><div style="background:#173c30;color:#fff;text-align:center;padding:38px"><div style="font-size:44px">⭐🎄⭐</div><h1>Dein Weihnachtszauber beginnt!</h1><p>Deine persönliche Wichtelwelt ist bereit.</p></div><div style="padding:32px"><h2>Willkommen bei ${escapeHtml(world.elf_name)}!</h2><p>Dein ${escapeHtml(plan)}-Paket wartet auf dich: persönliche Geschichten, Weihnachtsmagie und viele Überraschungen.</p><p style="text-align:center;margin:36px 0"><a href="${escapeHtml(url)}" style="background:#173c30;color:white;padding:16px 26px;border-radius:10px;text-decoration:none;font-weight:bold">Meine Wichtelwelt öffnen</a></p><p style="font-size:13px;color:#65746d">Bitte melde dich mit deinem Kundenkonto an, um deine persönliche Wichtelwelt zu öffnen.</p></div></div></body></html>`;
+ const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json','Idempotency-Key':`welcome-${orderId}`},body:JSON.stringify({from:sender,to:[email],subject:`Deine WichtelZauber-Welt mit ${world.elf_name} ist bereit! ✨`,html})});
  const result=await response.json().catch(()=>({}));
- await db.from('email_deliveries').upsert({order_id:orderId,kind:'welcome',status:response.ok?'sent':'failed',provider_message_id:result.id||null,attempts:(prior?.status==='sent'?0:1),last_error:response.ok?null:JSON.stringify(result).slice(0,500),sent_at:response.ok?new Date().toISOString():null},{onConflict:'order_id,kind'});
+ await db.from('email_deliveries').upsert({order_id:orderId,kind:'welcome',status:response.ok?'sent':'failed',provider_message_id:result.id||null,attempts:(prior?.attempts||0)+1,last_error:response.ok?null:JSON.stringify(result).slice(0,500),sent_at:response.ok?new Date().toISOString():null},{onConflict:'order_id,kind'});
  if(!response.ok)return new Response('Email provider failed',{status:502});
- await db.from('world_invitations').update({sent_at:new Date().toISOString()}).eq('world_id',world.id);
+
  return new Response('Sent',{status:200});
 });
