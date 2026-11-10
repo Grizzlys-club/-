@@ -26,12 +26,32 @@ if(worldId){
    if(!world){show('Diese Wichtelwelt gehört nicht zu deinem Konto oder wurde noch nicht freigeschaltet.');return}
    // Only server-confirmed package entitlements are trusted for a paid world.
    const plan=world.package;
-   const url=new URL(location.href);url.searchParams.set('paket',plan);
+   window.__worldEntitlement=plan;
+   const [progress,missions,letters]=await Promise.all([
+     db.from('episode_progress').select('day').eq('world_id',worldId),
+     db.from('world_missions').select('mission_id').eq('world_id',worldId),
+     db.from('wichtel_messages').select('body').eq('world_id',worldId).order('created_at',{ascending:true})
+   ]);
+   if(progress.error||missions.error||letters.error)throw Error('Deine persönlichen Daten konnten nicht geladen werden.');
+   const initial={opened:progress.data.map(x=>x.day),missions:missions.data.map(x=>x.mission_id),letters:letters.data.map(x=>x.body)};
+   window.dispatchEvent(new CustomEvent('world:authenticated',{detail:{package:plan,elf_name:world.elf_name,...initial}}));
+   const known={opened:new Set(initial.opened),missions:new Set(initial.missions),letters:initial.letters.length};
+   if(!window.__worldSyncAttached){
+     window.__worldSyncAttached=true;
+     window.addEventListener('world:changed',async e=>{
+       const d=e.detail;
+       const newDays=d.opened.filter(x=>!known.opened.has(x));
+       const newMissions=d.missions.filter(x=>!known.missions.has(x));
+       const newLetters=d.letters.slice(known.letters);
+       for(const day of newDays){const {error}=await db.from('episode_progress').upsert({world_id:worldId,day},{onConflict:'world_id,day'});if(!error)known.opened.add(day)}
+       for(const mission_id of newMissions){const {error}=await db.from('world_missions').upsert({world_id:worldId,mission_id},{onConflict:'world_id,mission_id'});if(!error)known.missions.add(mission_id)}
+       for(const body of newLetters){const {error}=await db.from('wichtel_messages').insert({world_id:worldId,body});if(!error)known.letters++}
+     });
+   }
    document.getElementById('hero-name').textContent=world.elf_name.endsWith('s')?world.elf_name+"'":world.elf_name+'s';
    document.getElementById('demo-notice').textContent='✨ Deine persönliche Wichtelwelt · '+plan.toUpperCase();
    overlay.classList.add('hidden');
-   // NOTE: story progress and messages remain browser-local until persistence integration.
-   // The URL package is only for demo display; paid access must be enforced in the database.
+   // Paid access is enforced by RLS and the authenticated owner lookup.
   };
   document.getElementById('world-login').addEventListener('submit',async e=>{
    e.preventDefault();
