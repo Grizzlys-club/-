@@ -20,3 +20,10 @@ create policy "Write own episode progress" on public.episode_progress for insert
  where w.id=episode_progress.world_id and f.owner_id=(select auth.uid())));
 -- Avoid exposing unpublished episodes: clients fetch only published content.
 -- Message inserts are already restricted to the family owner in initial migration.
+
+-- Episode rows are required by the progress foreign key. Stories in the web
+-- preview are authored in the frontend until editorial content is migrated.
+insert into public.episodes(day,title,story,published)
+select n, 'Adventstag '||n, 'Eine neue Geschichte wartet auf dich.', true
+from generate_series(1,24) n
+on conflict (day) do nothing;
