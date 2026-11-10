@@ -18,7 +18,7 @@ const destinations=[
 {name:'Weihnachtswerkstatt',x:24,z:22,emoji:'🛠️',text:'Die Werkstatt funkelt im Schein unzähliger Lichter.',view:'village',tier:2},
 {name:'Nordpol',x:-25,z:22,emoji:'⭐',text:'Am Nordpol strahlt der grosse Weihnachtsstern.',view:'village',tier:2}
 ];
-const tier={basic:0,magic:1,ultimate:2}[new URLSearchParams(location.search).get('paket')]??2;
+const getTier=()=>({basic:0,magic:1,ultimate:2})[new URLSearchParams(location.search).has('world')?window.__worldEntitlement:new URLSearchParams(location.search).get('paket')]??0;
 const mat=(color,opts={})=>new THREE.MeshStandardMaterial({color,...opts});
 const snow=mat('#e5eef4',{roughness:0.95}),wood=mat('#9d6352'),roof=mat('#f1f5f5'),treeMat=mat('#1d6758'),trunk=mat('#71513e'),gold=mat('#f5c56c',{emissive:'#76531b',emissiveIntensity:.6}),stone=mat('#8ca4ae');
 function addBox(x,y,z,w,h,d,m){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);return mesh}
@@ -42,13 +42,13 @@ function init(){
 function step(){if(!active)return;const dt=Math.min(clock.getDelta(),.05);const speed=(keys.has('shift')?12:7)*dt;const forward=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));const side=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));if(forward||side){const norm=Math.hypot(forward,side);player.x+=((Math.sin(player.yaw)*forward+Math.cos(player.yaw)*side)/norm)*speed;player.z+=((-Math.cos(player.yaw)*forward+Math.sin(player.yaw)*side)/norm)*speed;player.x=THREE.MathUtils.clamp(player.x,-67,67);player.z=THREE.MathUtils.clamp(player.z,-67,67)}
  camera.position.set(player.x,2.4,player.z);camera.rotation.order='YXZ';camera.rotation.y=player.yaw;camera.rotation.x=-.06;
  near=destinations.find(d=>Math.hypot(player.x-d.x,player.z-(d.z+5))<7)||null;
- hint.textContent=near?'✨ '+near.name+' · '+(tier>=near.tier?'Drücke E oder «Entdecken»':'In einem höheren Paket enthalten'):'Bewege dich mit WASD oder den Pfeiltasten. Ziehe zum Umschauen.';
- interactBtn.disabled=!near||tier<near.tier;
+ hint.textContent=near?'✨ '+near.name+' · '+(getTier()>=near.tier?'Drücke E oder «Entdecken»':'In einem höheren Paket enthalten'):'Bewege dich mit WASD oder den Pfeiltasten. Ziehe zum Umschauen.';
+ interactBtn.disabled=!near||getTier()<near.tier;
  renderer.render(scene,camera);raf=requestAnimationFrame(step)
 }
 function enter(){root.classList.remove('hidden');if(!renderer){try{init()}catch(e){status.textContent='3D konnte auf diesem Gerät nicht gestartet werden.';return}}active=true;clock.getDelta();step();root.scrollIntoView({behavior:'smooth'});}
 function exit(){active=false;cancelAnimationFrame(raf);keys.clear();root.classList.add('hidden')}
-function interact(){if(!near||tier<near.tier)return;status.textContent=near.emoji+' '+near.text;if(near.view==='advent')document.getElementById('three-open-calendar').classList.remove('hidden')}
+function interact(){if(!near||getTier()<near.tier)return;status.textContent=near.emoji+' '+near.text;if(near.view==='advent')document.getElementById('three-open-calendar').classList.remove('hidden')}
 openBtn.addEventListener('click',enter);closeBtn.addEventListener('click',exit);interactBtn.addEventListener('click',interact);
 document.getElementById('three-open-calendar').onclick=()=>{exit();document.querySelector('[data-view="advent"]').click()};
 window.addEventListener('keydown',e=>{if(!active)return;const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','e','shift'].includes(k)){e.preventDefault();keys.add(k)}if(k==='e')interact();if(k==='escape')exit()});
