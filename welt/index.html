@@ -22,12 +22,12 @@ const params=new URLSearchParams(location.search);
 const allowed=['basic','magic','ultimate'];
 let packageId=allowed.includes(params.get('paket'))?params.get('paket'):'ultimate';
 const worldKey=params.get('welt')?.match(/^[a-zA-Z0-9_-]{6,80}$/)?.[0]||'demo';
-const key='wichtelzauber_world_preview_'+worldKey;
-let state;try{state=JSON.parse(localStorage.getItem(key))}catch{}
+const key=params.has('world')?'wichtelzauber_private_'+params.get('world'):'wichtelzauber_world_preview_'+worldKey;
+let state;if(!params.has('world'))try{state=JSON.parse(localStorage.getItem(key))}catch{}
 if(!state||typeof state!=='object')state={name:'Lasse',family:'',opened:[],letters:[]};
 if(!Array.isArray(state.opened))state.opened=[];
 if(!Array.isArray(state.letters))state.letters=[];if(!Array.isArray(state.missions))state.missions=[];
-const persist=()=>{try{localStorage.setItem(key,JSON.stringify(state))}catch{};window.dispatchEvent(new CustomEvent('world:changed',{detail:{opened:[...state.opened],missions:[...state.missions],letters:[...state.letters]}}));};
+const persist=()=>{if(!params.has('world'))try{localStorage.setItem(key,JSON.stringify(state))}catch{};window.dispatchEvent(new CustomEvent('world:changed',{detail:{opened:[...state.opened],missions:[...state.missions],letters:[...state.letters]}}));};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names=['Ein Stern verschwindet','Die Spur im Schnee','Ein Brief aus dem Norden','Das flüsternde Tor','Die verlorene Karte','Nikolaus und das Geheimnis','Der Wald aus Silber','Eine unerwartete Freundin','Die Brücke aus Eis','Der verborgene Schlüssel','Die Werkstatt der Wunder','Das Licht im Turm','Ein seltsames Geräusch','Der mutige kleine Fuchs','Die Botschaft der Eule','Der gefrorene See','Das Rätsel der Glocken','Ein Versprechen im Schnee','Der letzte Hinweis','Die Reise zum Nordpol','Die Tür aus Sternenstaub','Der Schatten im Himmel','Die Nacht der Entscheidung','Das Weihnachtswunder'];
 const chapters=[
@@ -56,7 +56,7 @@ const chapters=[
 '{name} rief alle Freunde zusammen. Der Fuchs, die Eule und das Eichhörnchen brachten ihre schönsten Erinnerungen mit.',
 'Als alle gemeinsam lachten, begann der Stern wieder zu leuchten. Sein Licht erfüllte das ganze Dorf. {name} wusste nun: Der grösste Zauber entsteht, wenn wir füreinander da sind.'
 ];
-function view(v){document.querySelectorAll('main>section').forEach(e=>e.classList.toggle('hidden',e.id!=='view-'+v));document.querySelectorAll('.links button').forEach(e=>e.classList.toggle('active',e.dataset.view===v));if(v==='advent')drawCalendar();if(v==='post')drawLetters();if(v==='settings')drawSettings();if(v==='missions')drawMissions();scrollTo({top:0,behavior:'smooth'});}
+function view(v){document.querySelectorAll('main>section').forEach(e=>e.classList.toggle('hidden',e.id!=='view-'+v));document.querySelectorAll('.links button').forEach(e=>e.classList.toggle('active',e.dataset.view===v));if(v==='advent')drawCalendar();if(v==='post')drawLetters();if(v==='settings')drawSettings();if(v==='missions')drawMissions();if(v==='village'&&window.__world3DReady)window.dispatchEvent(new Event('world:show'));scrollTo({top:0,behavior:'smooth'});}
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>view(b.dataset.view)));
 function drawCalendar(){$('opened-count').textContent=state.opened.length;$('calendar').innerHTML=names.map((n,i)=>'<button class="door" data-day="'+(i+1)+'" aria-label="Türchen '+(i+1)+': '+esc(n)+'">'+(state.opened.includes(i+1)?'✨':i+1)+'</button>').join('');document.querySelectorAll('[data-day]').forEach(b=>b.onclick=()=>{const day=Number(b.dataset.day);if(!state.opened.includes(day))state.opened.push(day);persist();$('chapter-title').textContent='Tag '+day+' · '+names[day-1];$('chapter-body').textContent=chapters[day-1].replaceAll('{name}',state.name);$('chapter').classList.remove('hidden');drawCalendar();$('chapter').focus();});}
 $('chapter-close').onclick=()=>{$('chapter').classList.add('hidden');$('calendar').scrollIntoView({behavior:'smooth'})};
