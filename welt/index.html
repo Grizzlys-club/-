@@ -20,14 +20,14 @@
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search);
 const allowed=['basic','magic','ultimate'];
-const packageId=allowed.includes(params.get('paket'))?params.get('paket'):'ultimate';
+let packageId=allowed.includes(params.get('paket'))?params.get('paket'):'ultimate';
 const worldKey=params.get('welt')?.match(/^[a-zA-Z0-9_-]{6,80}$/)?.[0]||'demo';
 const key='wichtelzauber_world_preview_'+worldKey;
 let state;try{state=JSON.parse(localStorage.getItem(key))}catch{}
 if(!state||typeof state!=='object')state={name:'Lasse',family:'',opened:[],letters:[]};
 if(!Array.isArray(state.opened))state.opened=[];
 if(!Array.isArray(state.letters))state.letters=[];if(!Array.isArray(state.missions))state.missions=[];
-const persist=()=>{try{localStorage.setItem(key,JSON.stringify(state))}catch{}};
+const persist=()=>{try{localStorage.setItem(key,JSON.stringify(state))}catch{};window.dispatchEvent(new CustomEvent('world:changed',{detail:{opened:[...state.opened],missions:[...state.missions],letters:[...state.letters]}}));};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const names=['Ein Stern verschwindet','Die Spur im Schnee','Ein Brief aus dem Norden','Das flüsternde Tor','Die verlorene Karte','Nikolaus und das Geheimnis','Der Wald aus Silber','Eine unerwartete Freundin','Die Brücke aus Eis','Der verborgene Schlüssel','Die Werkstatt der Wunder','Das Licht im Turm','Ein seltsames Geräusch','Der mutige kleine Fuchs','Die Botschaft der Eule','Der gefrorene See','Das Rätsel der Glocken','Ein Versprechen im Schnee','Der letzte Hinweis','Die Reise zum Nordpol','Die Tür aus Sternenstaub','Der Schatten im Himmel','Die Nacht der Entscheidung','Das Weihnachtswunder'];
 const chapters=[
@@ -67,7 +67,7 @@ function newGame(){cards=[...symbols,...symbols];for(let i=cards.length-1;i>0;i-
 function drawGame(){$('memory').innerHTML=cards.map((c,i)=>'<button class="tile '+(flipped.includes(i)||matched.includes(i)?'open':'')+'" data-card="'+i+'" aria-label="Memorykarte '+(i+1)+'">'+(flipped.includes(i)||matched.includes(i)?c:'✦')+'</button>').join('');$('memory-status').textContent=matched.length===8?'🎉 Geschafft! Du hast alle Paare gefunden.':'Gefundene Paare: '+matched.length/2+' / 4';document.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.card);if(busy||flipped.includes(i)||matched.includes(i))return;flipped.push(i);drawGame();if(flipped.length===2){if(cards[flipped[0]]===cards[flipped[1]]){matched.push(...flipped);flipped=[];drawGame()}else{busy=true;setTimeout(()=>{flipped=[];busy=false;drawGame()},750)}}})}
 $('new-game').onclick=newGame;newGame();
 const places=[['🏡','Das Wichtelhäuschen','Hier wohnt dein Wichtel. Im warmen Licht des Kamins werden jeden Abend neue Geschichten erzählt.'],['🌲','Der Zauberwald','Zwischen verschneiten Tannen verstecken sich geheimnisvolle Spuren und kleine Waldfreunde.'],['🏰','Das Wichteldorf','Im Dorf duftet es nach Zimt und frischem Gebäck. In jedem Fenster leuchtet eine Kerze.'],['🛠️','Die Weihnachtswerkstatt','Hier werden Wünsche gesammelt und mit viel Liebe kleine Weihnachtswunder vorbereitet.'],['❄️','Der Nordpol','Unter funkelnden Polarlichtern wartet der grosse Weihnachtsstern.']];
-const available=packageId==='basic'?1:packageId==='magic'?2:5;
+let available=packageId==='basic'?1:packageId==='magic'?2:5;
 $('places').innerHTML=places.map(([emoji,title],i)=>'<article class="card"><div class="icon">'+emoji+'</div><h3>'+title+'</h3><p>'+(i<available?'Ein magischer Ort wartet auf dich.':'In einem höheren Paket enthalten.')+'</p><button class="btn secondary" data-place="'+i+'" '+(i>=available?'disabled':'')+'>'+(i<available?'Ort entdecken':'Nicht enthalten')+'</button></article>').join('');
 document.querySelectorAll('[data-place]').forEach(b=>b.onclick=()=>{const p=places[Number(b.dataset.place)];$('place-title').textContent=p[0]+' '+p[1];$('place-description').textContent=p[2];$('place-detail').classList.remove('hidden');$('place-detail').scrollIntoView({behavior:'smooth'})});
 const missions=[
@@ -94,6 +94,6 @@ function drawSettings(){$('elf-name').value=state.name;$('family-name').value=st
 $('settings-form').onsubmit=e=>{e.preventDefault();state.name=$('elf-name').value.trim().slice(0,25)||'Lasse';state.family=$('family-name').value.trim().slice(0,40);persist();renderName();view('home')};
 $('reset').onclick=()=>{if(!confirm('Alle Daten dieser Vorschau zurücksetzen?'))return;localStorage.removeItem(key);location.reload()};
 function renderName(){$('hero-name').textContent=state.name.endsWith('s')?state.name+"'":state.name+'s';}
-renderName();drawCalendar();drawMissions();
+window.addEventListener('world:authenticated',e=>{const d=e.detail;packageId=d.package;available=packageId==='basic'?1:packageId==='magic'?2:5;state.name=d.elf_name;state.opened=d.opened||[];state.missions=d.missions||[];state.letters=d.letters||[];renderName();drawCalendar();drawMissions();drawLetters();document.querySelectorAll('[data-place]').forEach(b=>{const i=Number(b.dataset.place);b.disabled=i>=available;b.textContent=i>=available?'Nicht enthalten':'Ort entdecken';b.parentElement.querySelector('p').textContent=i>=available?'In einem höheren Paket enthalten.':'Ein magischer Ort wartet auf dich.'});});renderName();drawCalendar();drawMissions();
 })();
 </script><script type="module" src="./world-auth.js"></script><script type="module" src="./three-world.js"></script></body></html>
