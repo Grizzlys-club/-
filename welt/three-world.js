@@ -10,6 +10,8 @@ const closeBtn=document.getElementById('three-exit');
 const interactBtn=document.getElementById('three-interact');
 if(!root||!stage)throw Error('Missing 3D world host');
 let renderer,scene,camera,player,active=false,clock,raf,near=null;
+const obstacles=[{x:0,z:-11,r:5.6},{x:24,z:-10,r:4.6},{x:24,z:22,r:5.1}];
+const canWalk=(x,z)=>!obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.r);
 const keys=new Set();
 const destinations=[
 {name:'Wichtelhaus',x:0,z:-11,emoji:'🏡',text:'Willkommen in deinem Wichtelhaus! Hier beginnt jeden Tag eine neue Weihnachtsgeschichte.',view:'advent',tier:0},
@@ -18,7 +20,7 @@ const destinations=[
 {name:'Weihnachtswerkstatt',x:24,z:22,emoji:'🛠️',text:'Die Werkstatt funkelt im Schein unzähliger Lichter.',view:'village',tier:2},
 {name:'Nordpol',x:-25,z:22,emoji:'⭐',text:'Am Nordpol strahlt der grosse Weihnachtsstern.',view:'village',tier:2}
 ];
-const getTier=()=>({basic:0,magic:1,ultimate:2})[new URLSearchParams(location.search).has('world')?window.__worldEntitlement:new URLSearchParams(location.search).get('paket')]??0;
+const getTier=()=>({basic:0,magic:1,ultimate:2})[new URLSearchParams(location.search).has('world')?window.__worldEntitlement:new URLSearchParams(location.search).get('paket')]??2;
 const mat=(color,opts={})=>new THREE.MeshStandardMaterial({color,...opts});
 const snow=mat('#e5eef4',{roughness:0.95}),wood=mat('#9d6352'),roof=mat('#f1f5f5'),treeMat=mat('#1d6758'),trunk=mat('#71513e'),gold=mat('#f5c56c',{emissive:'#76531b',emissiveIntensity:.6}),stone=mat('#8ca4ae');
 function addBox(x,y,z,w,h,d,m){const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);return mesh}
@@ -39,14 +41,14 @@ function init(){
  player={x:0,z:7,yaw:0};clock=new THREE.Clock();
  const resize=()=>{const w=stage.clientWidth,h=stage.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h,false)};new ResizeObserver(resize).observe(stage);resize();
 }
-function step(){if(!active)return;const dt=Math.min(clock.getDelta(),.05);const speed=(keys.has('shift')?12:7)*dt;const forward=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));const side=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));if(forward||side){const norm=Math.hypot(forward,side);player.x+=((Math.sin(player.yaw)*forward+Math.cos(player.yaw)*side)/norm)*speed;player.z+=((-Math.cos(player.yaw)*forward+Math.sin(player.yaw)*side)/norm)*speed;player.x=THREE.MathUtils.clamp(player.x,-67,67);player.z=THREE.MathUtils.clamp(player.z,-67,67)}
+function step(){if(!active)return;const dt=Math.min(clock.getDelta(),.05);const speed=(keys.has('shift')?12:7)*dt;const forward=Number(keys.has('w')||keys.has('arrowup'))-Number(keys.has('s')||keys.has('arrowdown'));const side=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'));if(forward||side){const norm=Math.hypot(forward,side);const dx=((Math.sin(player.yaw)*forward+Math.cos(player.yaw)*side)/norm)*speed;const dz=((-Math.cos(player.yaw)*forward+Math.sin(player.yaw)*side)/norm)*speed;const nx=THREE.MathUtils.clamp(player.x+dx,-67,67),nz=THREE.MathUtils.clamp(player.z+dz,-67,67);if(canWalk(nx,player.z))player.x=nx;if(canWalk(player.x,nz))player.z=nz}
  camera.position.set(player.x,2.4,player.z);camera.rotation.order='YXZ';camera.rotation.y=player.yaw;camera.rotation.x=-.06;
  near=destinations.find(d=>Math.hypot(player.x-d.x,player.z-(d.z+5))<7)||null;
  hint.textContent=near?'✨ '+near.name+' · '+(getTier()>=near.tier?'Drücke E oder «Entdecken»':'In einem höheren Paket enthalten'):'Bewege dich mit WASD oder den Pfeiltasten. Ziehe zum Umschauen.';
  interactBtn.disabled=!near||getTier()<near.tier;
  renderer.render(scene,camera);raf=requestAnimationFrame(step)
 }
-function enter(){root.classList.remove('hidden');if(!renderer){try{init()}catch(e){status.textContent='3D konnte auf diesem Gerät nicht gestartet werden.';return}}active=true;clock.getDelta();step();root.scrollIntoView({behavior:'smooth'});}
+function enter(){if(new URLSearchParams(location.search).has('world')&&!window.__worldEntitlement){status.textContent='Bitte zuerst mit deinem Kundenkonto anmelden.';return;}root.classList.remove('hidden');if(!renderer){try{init()}catch(e){status.textContent='3D konnte auf diesem Gerät nicht gestartet werden.';return}}active=true;clock.getDelta();step();root.scrollIntoView({behavior:'smooth'});}
 function exit(){active=false;cancelAnimationFrame(raf);keys.clear();root.classList.add('hidden')}
 function interact(){if(!near||getTier()<near.tier)return;status.textContent=near.emoji+' '+near.text;if(near.view==='advent')document.getElementById('three-open-calendar').classList.remove('hidden')}
 openBtn.addEventListener('click',enter);closeBtn.addEventListener('click',exit);interactBtn.addEventListener('click',interact);
