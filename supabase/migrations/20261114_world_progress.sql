@@ -12,9 +12,6 @@ create policy "Read own missions" on public.world_missions for select to authent
 create policy "Complete own missions" on public.world_missions for insert to authenticated
  with check (exists(select 1 from public.worlds w join public.families f on f.id=w.family_id
  where w.id=world_missions.world_id and f.owner_id=(select auth.uid())));
-create policy "Read own episode progress" on public.episode_progress for select to authenticated
- using (exists(select 1 from public.worlds w join public.families f on f.id=w.family_id
- where w.id=episode_progress.world_id and f.owner_id=(select auth.uid())));
 create policy "Write own episode progress" on public.episode_progress for insert to authenticated
  with check (exists(select 1 from public.worlds w join public.families f on f.id=w.family_id
  where w.id=episode_progress.world_id and f.owner_id=(select auth.uid())));
