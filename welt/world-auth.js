@@ -7,14 +7,15 @@ if(worldId){
  const message=document.getElementById('world-auth-message');
  overlay.classList.remove('hidden');
  const show=s=>message.textContent=s;
+ const form=document.getElementById('world-login');
  const valid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(worldId);
  if(!valid){show('Dieser persönliche Link ist ungültig.');}
  else {
  try{
   const configResponse=await fetch('./world-config.json',{cache:'no-store'});
-  if(!configResponse.ok)throw Error('Die Anmeldung wird gerade eingerichtet. Bitte versuche es später erneut.');
+  if(!configResponse.ok)throw Error('Der E-Mail-Versand ist noch nicht mit Supabase verbunden. Bitte kontaktiere WichtelZauber; es wurde keine E-Mail verschickt.');
   const cfg=await configResponse.json();
-  if(!/^https:\/\//.test(cfg.supabaseUrl)||!cfg.supabaseAnonKey)throw Error('Die Anmeldung ist noch nicht konfiguriert.');
+  if(!/^https:\/\//.test(cfg.supabaseUrl)||!cfg.supabaseAnonKey)throw Error('Die Anmeldung ist noch nicht konfiguriert. Es wurde keine E-Mail verschickt.');
   const {createClient}=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm');
   const db=createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
   const validate=async()=>{
@@ -57,10 +58,10 @@ if(worldId){
    e.preventDefault();
    const email=document.getElementById('world-email').value.trim();
    const {error}=await db.auth.signInWithOtp({email,options:{emailRedirectTo:location.href}});
-   show(error?'Anmeldelink konnte nicht gesendet werden.':'Bitte prüfe deine E-Mails und öffne den Anmeldelink.');
+   show(error?'E-Mail konnte nicht angefordert werden: '+error.message:'Anmeldelink angefordert. Bitte prüfe deinen Posteingang und Spamordner.');
   });
   await validate();
   db.auth.onAuthStateChange(()=>{void validate().catch(e=>show(e.message))});
- }catch(e){show(e.message||'Die Anmeldung ist momentan nicht verfügbar.')}
+ }catch(e){form.querySelector('button').disabled=true;show(e.message||'Die Anmeldung ist momentan nicht verfügbar. Es wurde keine E-Mail verschickt.')}
  }
 }
