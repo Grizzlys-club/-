@@ -28,5 +28,16 @@ Deno.serve(async req=>{
     p_currency:session.currency
   });
   if(error){console.error('Fulfilment failed',error);return new Response('Retry later',{status:500});}
+  // Email dispatch is part of fulfilment: return 500 on failure so Stripe retries.
+  // The delivery endpoint is idempotent for an already-sent order.
+  const deliverySecret=Deno.env.get('INTERNAL_DELIVERY_SECRET');
+  if(!deliverySecret)return new Response('Delivery not configured',{status:500});
+  try{
+    const response=await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-world-email`,{
+      method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${deliverySecret}`},
+      body:JSON.stringify({orderId})
+    });
+    if(!response.ok){console.error('World email delivery failed',response.status);return new Response('Delivery pending retry',{status:500});}
+  }catch(e){console.error('World email dispatch error',e);return new Response('Delivery pending retry',{status:500});}
   return new Response('OK',{status:200});
 });
